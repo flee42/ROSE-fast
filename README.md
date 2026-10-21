@@ -8,10 +8,15 @@ provably equivalent or has no upstream counterpart. Each route deviates from ups
 **exactly one** step:
 
 ```
-BAM    : bedToGFF → regionStitching → [fast_bam_to_gff] → mapCollection → ROSE_callSuper.R
-bigWig : bedToGFF → regionStitching → [bigWig scorer + REGION_MAP] → ROSE_callSuper.R
-          └──────────── upstream ───────────┘   └─ ours ─┘          └── upstream ──┘
+                     upstream steps            this repo         downstream step
+                 ┌──────────────────────┐   ┌──────────────┐   ┌──────────────────┐
+BAM    :  bedToGFF → regionStitching → [fast_bam_to_gff] → mapCollection → ROSE_callSuper.R
+bigWig :  bedToGFF → regionStitching → [bigWig scorer]   → REGION_MAP   → ROSE_callSuper.R
+                 └──────────────────────┘   └──────────────┘   └──────────────────┘
 ```
+
+`upstream steps` and `downstream step` are both **ROSE's own code** (they only differ in
+where they sit in the flow); the bracketed **`this repo`** step is the only new algorithm.
 
 ## What changed
 
@@ -50,7 +55,7 @@ Same sample, same peaks, same control, same stitch/TSS settings
 |---|---|---|---|---|---|
 | original `ROSE_main.py` | **1 h 52 min 07 s** | 6,807.54 | 15,810 | 1,050 | 6.64 % |
 | ROSE-fast BAM | **2 min 12.8 s** | 6,808.77 | 15,810 | 1,049 | 6.64 % |
-| ROSE-fast bigWig | ~1 min | 92,604.9 * | 15,810 | 1,045 | 6.61 % |
+| ROSE-fast bigWig | **20.6 s** (12.2 stitch + 8.4 score) | 92,604.9 * | 15,810 | 1,045 | 6.61 % |
 
 \* the bigWig score is `mean fold-change x length`, a different unit from the
 RPM-normalised read density used by the BAM route, so the raw cutoff values are
@@ -69,26 +74,13 @@ Three things this table establishes:
    including the third step (575 original loci added back after the >2-TSS revert).
 2. **The fast BAM route is equivalent to upstream**: one super region out of 1,050
    differs, because `fast_bam_to_gff.py` changes the region score by ~1e-4, which
-   moves the cutoff by 0.018 %. Throughput improves **50.6x**.
+   moves the cutoff by 0.018 %. Throughput improves **50.6x**; the bigWig route
+   needs **no BAM at all** and finishes in **20.6 s** (**326x**).
 3. **bigWig vs BAM is an estimator difference, not a bug**: stitching is identical
    and `frac_super` agrees to 0.03 pp, but the super *sets* are a high-precision
    subset (see the population-level table below: precision 93 %, recall 74 % for K562).
 
 > Reproduce with `tools/compare_super_sets.py` and `tools/compare_super_bp_jaccard.py`.
-
-### bigWig vs BAM, population level (10 cells × 3 marks)
-
-| layer | result |
-|---|---|
-| stitching | Jaccard 0.9993 (identical code) |
-| cutoff | Jaccard 0.9975 (H1) / 0.9990 (K562) |
-| super set (exact) | **Jaccard 1.0000** H1 and K562 |
-| super set (base-pair) | 0.9149 H1 / 0.7011 K562 — precision 98.3% / 93.0%, recall 93.0% / 74.0% |
-| `frac_super` | +0.2 / +0.4 / +0.1 pp |
-| downstream enrichment ratio (bigWig/BAM) | **0.86–1.07**, median **0.96**; all 4 boundary-mark orderings identical |
-
-The bigWig route is therefore a **high-precision subset** of the BAM route at the
-individual-region level, and equivalent at the population level.
 
 ## Usage
 
@@ -169,21 +161,9 @@ Rscript tools/rose_cutoff_R.R <super_dir>                           # cutoff cro
 | `<name>_Plot_points.png` | hockey-stick plot |
 | `<name>_signal.tsv` | `chr,start,end,signal,rank,isSuper` (convenience; also emitted by the bigWig route) |
 
-## Pitfalls that must be replicated exactly
-
-Getting any of these wrong changes the result:
-
-1. Read coverage is **inclusive of `end`** (`range(start, end+1)`); the half-open pysam convention gives a uniform 0.996 bias.
-2. Region sum over `start < x < end-1`, divisor `len - 1`.
-3. Search window = region ± `extension`; reads extended by `extension` (`+`: `end+ext`, `-`: `start-ext`).
-4. Positions with coverage ≤ `floor` (`-f 1`) are dropped.
-5. `MMR = round(mapped_reads / 1e6, 4)`; density = `binDen / MMR`.
-6. `regionStitching` has **three** steps: drop constituents **fully contained** in TSS ± tssWindow; stitch; **revert any stitched locus overlapping >2 distinct gene TSSs (TSS ± 50 bp)** to its constituents. Missing step 3 under-produces regions (K562 15,405 vs 19,740).
-7. Use ROSE's `annotation/hg38_refseq.ucsc` (58,350 transcripts / 26,514 symbols), not GENCODE (over-reverts: K562 27,994 vs 19,741).
-8. `ROSE_utils.parseTable` cannot read gzip — decompress first.
-9. `ROSE_callSuper.R` re-sorts `*_AllStitched.table.txt` by `stitchedPeakRank`, so `isSuper` must be mapped back **by region id or coordinates**, never by row position.
-
 ---
+
+**⬇️ Below this line: the ORIGINAL ROSE README, unmodified.**
 
 <!-- ===================== upstream README below ===================== -->
 
