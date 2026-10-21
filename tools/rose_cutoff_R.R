@@ -24,7 +24,11 @@ calculate_cutoff <- function(inputVector, drawPlot=TRUE,...){
 }
 #!/usr/bin/env Rscript
 # rose_cutoff_R.R -- compute ROSE cutoff with the AUTHORS own R function.
-# usage: Rscript rose_cutoff_R.R <dir with *_signal.tsv>
+# usage: Rscript tools/rose_cutoff_R.R <dir with *_signal.tsv>
+#
+# QA ONLY. This is a copy of ROSE's calculate_cutoff() used to cross-check
+# that rose_call_super_R_native.py really reproduces ROSE_callSuper.R.
+# Production runs always go through the upstream ROSE_callSuper.R.
 args <- commandArgs(trailingOnly=TRUE)
 d <- if (length(args) >= 1) args[1] else "."
 files <- list.files(d, pattern="_signal", full.names=TRUE)

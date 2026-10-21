@@ -20,7 +20,7 @@ bigWig : bedToGFF → regionStitching → [bigWig scorer + REGION_MAP] → ROSE_
 | 1 | **`bin/fast_bam_to_gff.py`** — numpy difference-array BAM→GFF mapper | BAM route, step 3 | Replaces the per-base Python dict in `ROSE_bamToGFF.py`. Entry-level **Spearman 1.0000**, median relative difference 0.04%, end-to-end **super-set Jaccard 1.0000** (H1 392/392, K562 987/987). |
 | 2 | **Skip the two dead `bamToGFF` runs** | both | Upstream maps the *original* (unstitched) GFF in addition to the stitched one, but `mapCollection` only ever reads `<stitched>_<bam>_MAPPED.gff`. Two of the four runs are pure waste → **2× less mapping work**, identical output. |
 | 3 | **`bin/rose_stitch_official.py`** — stitching without any BAM | bigWig route | Calls upstream `ROSE_main.regionStitching` directly; additionally decompresses gzipped peak files, which `ROSE_utils.parseTable` cannot read (`UnicodeDecodeError: 0x8b`). |
-| 4 | **`bin/rose_call_super_R_native.py`** — bigWig scoring → 7-column `REGION_MAP` → **upstream `ROSE_callSuper.R`** with `wceName='NONE'` | bigWig route | No upstream equivalent exists for bigWig input, so only the *scorer* is new; the **cutoff and super-calling are 100% upstream**. |
+| 4 | **`bin/rose_call_super_R_native.py`** — bigWig scoring → 7-column `REGION_MAP` → **upstream `ROSE_callSuper.R`** with `wceName='NONE'` | bigWig route | No upstream equivalent exists for bigWig input, so only the *scorer* is new; the **cutoff and super-calling are 100% upstream**. This is the **only** bigWig scorer in the repo — there is deliberately no Python re-implementation of the cutoff. |
 | 5 | **`bin/rose_run_one.py`** — sequential orchestrator | BAM route | `ROSE_main.py` launches `bamToGFF` with `os.system(cmd + " &")` and then polls with `time.sleep(300)`; it dies silently if the child is killed. This version calls ROSE's own functions in-process. |
 | 6 | **`bin/rose_fast.py`** — `bam \| stitch \| score \| bigwig` dispatcher | — | Thin wrapper; contains no algorithm. |
 | 7 | **`bin/rose_super_io.py`**, **`tools/fix_signal_isuper.py`** | — | Helpers: format-agnostic super-table reader; repair `isSuper` mis-alignment caused by `writeSuperEnhancer_table()` re-sorting rows by `stitchedPeakRank`. |
@@ -133,6 +133,8 @@ instead of re-scanning the bigWig (saves hours on large cohorts).
 python tools/verify_fast_gff.py       --fast ... --slow ...        # mapper equivalence
 python tools/compare_super_sets.py    --a ... --b ...              # super-set Jaccard
 python tools/compare_bigwig_vs_bam_rose.py --bam ... --bigwig ...  # route comparison
+python tools/fix_signal_isuper.py <super_dir>                       # repair isSuper after R re-sorts
+Rscript tools/rose_cutoff_R.R <super_dir>                           # cutoff cross-check (QA only)
 ```
 
 ### Outputs
