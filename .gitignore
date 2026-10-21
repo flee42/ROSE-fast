@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.so
+.Rhistory
+.RData
+*.Rout
+.DS_Store
+out/
+*.log
+!docs/*.log
+docs/
