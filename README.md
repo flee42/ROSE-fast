@@ -1,6 +1,6 @@
 # ROSE-Fast — a faster ROSE with the same algorithm
 
-> **This section describes the changes made in this fork.** The upstream README follows
+> **This section describes the changes made in this fork.** The original README follows
 > after the separator at the bottom.
 
 This fork keeps **every algorithmic step of upstream ROSE** and replaces only what is
