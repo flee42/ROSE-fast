@@ -43,16 +43,38 @@ bigWig : bedToGFF → regionStitching → [bigWig scorer + REGION_MAP] → ROSE_
 
 ### three-way check: original ROSE vs ROSE-fast BAM vs ROSE-fast bigWig
 
-Same sample, same peaks, same control (`K562` / `H3K27ac`, `ENCSR000AKP`):
+Same sample, same peaks, same control, same stitch/TSS settings
+(`K562` / `H3K27ac`, `ENCSR000AKP`, `--stitch 12500 --tss 3000`):
 
-| pair | stitched Jaccard | super Jaccard | cutoff ratio |
-|---|---|---|---|
-| original vs fast-BAM | _pending_ | _pending_ | _pending_ |
-| original vs fast-bigWig | _pending_ | _pending_ | _pending_ |
-| fast-BAM vs fast-bigWig | _pending_ | _pending_ | _pending_ |
+| run | wall time | cutoff | stitched | super | `frac_super` |
+|---|---|---|---|---|---|
+| original `ROSE_main.py` | **1 h 52 min 07 s** | 6,807.54 | 15,810 | 1,050 | 6.64 % |
+| ROSE-fast BAM | **2 min 12.8 s** | 6,808.77 | 15,810 | 1,049 | 6.64 % |
+| ROSE-fast bigWig | ~1 min | 92,604.9 * | 15,810 | 1,045 | 6.61 % |
 
-> Run `bash tools/compare_bigwig_vs_bam_rose.py` / `tools/compare_super_sets.py` to
-> reproduce; the table above is filled in once the full run completes.
+\* the bigWig score is `mean fold-change x length`, a different unit from the
+RPM-normalised read density used by the BAM route, so the raw cutoff values are
+not comparable — the fraction of super regions is.
+
+| pair | stitched Jaccard | super Jaccard | super bp Jaccard | shared/union |
+|---|---|---|---|---|
+| **original vs fast-BAM** | **1.0000** | **0.9990** | **0.9992** | 1049 / 1050 |
+| original vs fast-bigWig | **1.0000** | 0.7144 | 0.7941 | 873 / 1222 |
+| fast-BAM vs fast-bigWig | **1.0000** | 0.7150 | 0.7947 | 873 / 1221 |
+
+Three things this table establishes:
+
+1. **Stitching is bit-identical across all three routes** (15,810/15,810 every pair),
+   so `rose_stitch_official.py` really does reproduce `ROSE_main.regionStitching`,
+   including the third step (575 original loci added back after the >2-TSS revert).
+2. **The fast BAM route is equivalent to upstream**: one super region out of 1,050
+   differs, because `fast_bam_to_gff.py` changes the region score by ~1e-4, which
+   moves the cutoff by 0.018 %. Throughput improves **50.6x**.
+3. **bigWig vs BAM is an estimator difference, not a bug**: stitching is identical
+   and `frac_super` agrees to 0.03 pp, but the super *sets* are a high-precision
+   subset (see the population-level table below: precision 93 %, recall 74 % for K562).
+
+> Reproduce with `tools/compare_super_sets.py` and `tools/compare_super_bp_jaccard.py`.
 
 ### bigWig vs BAM, population level (10 cells × 3 marks)
 
